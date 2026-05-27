@@ -16,7 +16,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useCallback} = React;
+const {useState,useCallback,useEffect} = React;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const P = {
@@ -766,6 +766,13 @@ function TodayScreen({prescriptions,stock,logs,mode,dispatch,goToRx}) {
 function SettingsView({data,dispatch}) {
   const [confirmClear,setConfirmClear]=useState(false);
   const mode=data.settings?.trackingMode||"assume";
+  const [notifPerm,setNotifPerm]=useState(()=>window.MT?.getPermission()||"unsupported");
+
+  const requestNotif=async()=>{
+    const result=await window.MT?.requestPermission();
+    setNotifPerm(result||"unsupported");
+    if(result==="granted") window.MT?.schedule(data.prescriptions||[]);
+  };
 
   const exportData=()=>{
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -810,6 +817,42 @@ function SettingsView({data,dispatch}) {
             :"You confirm each dose on the Today screen. Stock reduces only on confirmation."}
         </div>
       </Card>
+    </Card>
+
+    {/* Notifications */}
+    <Card style={{padding:"18px 20px",marginBottom:14}}>
+      <div style={{fontWeight:800,fontSize:15,marginBottom:12}}>🔔 Reminders</div>
+      {notifPerm==="unsupported"&&(
+        <div style={{fontSize:13,color:P.muted,lineHeight:1.6}}>
+          Notifications are not supported on this browser/device.
+          Install the app to your home screen and use Safari (iOS 16.4+) or Chrome (Android).
+        </div>
+      )}
+      {notifPerm==="denied"&&(
+        <div style={{fontSize:13,color:P.red,lineHeight:1.6}}>
+          ❌ Notifications are blocked. Please go to your phone's Settings → Safari/Chrome → Notifications and allow MediTrack, then come back and try again.
+        </div>
+      )}
+      {notifPerm==="granted"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:13,color:P.green,fontWeight:700}}>✅ Notifications enabled</div>
+          <div style={{fontSize:13,color:P.muted,lineHeight:1.6}}>
+            Reminders fire at: 🌅 8:00 AM · ☀️ 1:00 PM · 🌆 6:00 PM · 🌙 9:00 PM — only for slots scheduled that day.
+            Open the app daily to refresh tomorrow's reminders.
+          </div>
+          <Btn v="subtle" sz="sm" onClick={()=>window.MT?.schedule(data.prescriptions||[])}>
+            🔄 Reschedule today's reminders
+          </Btn>
+        </div>
+      )}
+      {notifPerm==="default"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:13,color:P.muted,lineHeight:1.6}}>
+            Get a reminder at each medicine time. Works best when installed to your home screen.
+          </div>
+          <Btn v="success" onClick={requestNotif} full>🔔 Enable Reminders</Btn>
+        </div>
+      )}
     </Card>
 
     {/* Backup */}
@@ -918,6 +961,13 @@ function App() {
   const back=()=>setView(null);
   const mode=data.settings?.trackingMode||"assume";
 
+  // Reschedule notifications whenever prescriptions change
+  useEffect(()=>{
+    if(window.MT?.getPermission()==="granted"){
+      window.MT.schedule(data.prescriptions||[]);
+    }
+  },[data.prescriptions]);
+
   const wrap=children=>(
     <div style={{fontFamily:"Georgia,'Palatino Linotype',serif",background:P.bg,
       minHeight:"100vh",color:P.text,maxWidth:600,margin:"0 auto"}}>
@@ -983,5 +1033,115 @@ function App() {
 const root=ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App/>);
 </script>
+
+<!-- Service Worker + Notifications (plain JS, outside Babel) -->
+<script>
+// Slot times: morning=8:00, noon=13:00, evening=18:00, bed=21:00
+const SLOT_TIMES = { morning:[8,0], noon:[13,0], evening:[18,0], bed:[21,0] };
+const SLOT_LABELS = { morning:"Morning medicines", noon:"Noon medicines", evening:"Evening medicines", bed:"Bedtime medicines" };
+
+// Register inline service worker via Blob so we stay single-file
+const SW_CODE = `
+self.addEventListener('notificationclick', e => { e.notification.close(); clients.openWindow('/'); });
+self.addEventListener('message', e => {
+  if(e.data && e.data.type === 'SHOW_NOTIFICATION') {
+    self.registration.showNotification(e.data.title, {
+      body: e.data.body, icon: e.data.icon || '',
+      badge: e.data.icon || '', tag: e.data.tag || 'meditrack',
+      renotify: true, requireInteraction: false
+    });
+  }
+});
+`;
+
+let swReg = null;
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    const blob = new Blob([SW_CODE], { type: 'application/javascript' });
+    const url  = URL.createObjectURL(blob);
+    swReg = await navigator.serviceWorker.register(url, { scope: '/' });
+    await navigator.serviceWorker.ready;
+    return swReg;
+  } catch(e) {
+    console.log('SW registration failed:', e);
+    return null;
+  }
+}
+
+// Schedule notifications for today's slots
+function scheduleNotifications(prescriptions) {
+  if (Notification.permission !== 'granted') return;
+  const now   = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const dow   = now.getDay();
+
+  // Collect which slots are needed today
+  const slotsToday = {};
+  prescriptions.forEach(rx => {
+    (rx.schedule || []).forEach(entry => {
+      if (entry.days.includes(dow)) {
+        if (!slotsToday[entry.slotId]) slotsToday[entry.slotId] = [];
+        slotsToday[entry.slotId].push(rx.saltName);
+      }
+    });
+  });
+
+  // Clear existing timers
+  if (window._notifTimers) window._notifTimers.forEach(t => clearTimeout(t));
+  window._notifTimers = [];
+
+  Object.entries(slotsToday).forEach(([slotId, names]) => {
+    const [h, m] = SLOT_TIMES[slotId] || [];
+    if (h == null) return;
+    const fireAt = new Date();
+    fireAt.setHours(h, m, 0, 0);
+    const ms = fireAt - now;
+    if (ms < 0) return; // already passed today
+
+    const title = '💊 ' + SLOT_LABELS[slotId];
+    const body  = names.join(', ');
+
+    const t = setTimeout(() => {
+      // Try service worker notification first (works when app is in background)
+      if (swReg && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION', title, body, tag: 'meditrack-' + slotId
+        });
+      } else {
+        // Fallback: direct notification (only works when app is open)
+        new Notification(title, { body, tag: 'meditrack-' + slotId });
+      }
+    }, ms);
+    window._notifTimers.push(t);
+  });
+}
+
+// Expose to React via window so SettingsView can call it
+window.MT = {
+  getPermission: () => ('Notification' in window ? Notification.permission : 'unsupported'),
+  requestPermission: async () => {
+    if (!('Notification' in window)) return 'unsupported';
+    const result = await Notification.requestPermission();
+    return result;
+  },
+  schedule: (prescriptions) => scheduleNotifications(prescriptions),
+};
+
+// Init on load
+(async () => {
+  await registerSW();
+  // Schedule on startup if already permitted
+  const stored = localStorage.getItem('meditrack_v9');
+  if (stored && Notification.permission === 'granted') {
+    try {
+      const d = JSON.parse(stored);
+      scheduleNotifications(d.prescriptions || []);
+    } catch(e) {}
+  }
+})();
+</script>
+
 </body>
 </html>
