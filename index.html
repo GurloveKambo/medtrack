@@ -1,128 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
   <title>MediTrack</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#FAF7F2; font-family:Georgia,"Palatino Linotype",serif; }
-    input,select,textarea,button { font-family:inherit; }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#FAF7F2;font-family:Georgia,"Palatino Linotype",serif;}
+    input,select,textarea,button{font-family:inherit;}
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback } = React;
+const {useState,useCallback} = React;
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 const P = {
-  bg:"#FAF7F2", card:"#FFFFFF", cream:"#F5EFE4", border:"#E8DFD0",
-  text:"#2C2416", muted:"#8A7A65",
-  green:"#3D8C5F", greenLight:"#EAF5EE",
-  amber:"#C07A1A", amberLight:"#FEF3DC",
-  red:"#B03030",   redLight:"#FAEAEA",
-  blue:"#1A5C8F",  blueLight:"#E8F2FA",
+  bg:"#FAF7F2",card:"#FFFFFF",cream:"#F5EFE4",border:"#E8DFD0",
+  text:"#2C2416",muted:"#8A7A65",
+  green:"#3D8C5F",greenLight:"#EAF5EE",
+  amber:"#C07A1A",amberLight:"#FEF3DC",
+  red:"#B03030",redLight:"#FAEAEA",
+  blue:"#1A5C8F",blueLight:"#E8F2FA",
 };
-const ACCENTS = ["#3D8C5F","#1A5C8F","#7B4F9E","#C07A1A","#B03030","#2A7F8F","#8F5A2A","#5A7B2A"];
+const ACCENTS=["#3D8C5F","#1A5C8F","#7B4F9E","#C07A1A","#B03030","#2A7F8F","#8F5A2A","#5A7B2A"];
 
-const SLOTS = [
-  { id:"morning", label:"Morning",  icon:"🌅", hint:"8 AM"  },
-  { id:"noon",    label:"Noon",     icon:"☀️", hint:"1 PM"  },
-  { id:"evening", label:"Evening",  icon:"🌆", hint:"6 PM"  },
-  { id:"bed",     label:"Bedtime",  icon:"🌙", hint:"9 PM"  },
+const SLOTS=[
+  {id:"morning",label:"Morning", icon:"🌅",hint:"8 AM"},
+  {id:"noon",   label:"Noon",    icon:"☀️",hint:"1 PM"},
+  {id:"evening",label:"Evening", icon:"🌆",hint:"6 PM"},
+  {id:"bed",    label:"Bedtime", icon:"🌙",hint:"9 PM"},
 ];
-const SLOT_MAP = Object.fromEntries(SLOTS.map(s=>[s.id,s]));
+const SLOT_MAP=Object.fromEntries(SLOTS.map(s=>[s.id,s]));
+
+// Mon–Sun display order; id = JS getDay() value
+const DAYS=[
+  {id:1,s:"Mon"},{id:2,s:"Tue"},{id:3,s:"Wed"},
+  {id:4,s:"Thu"},{id:5,s:"Fri"},{id:6,s:"Sat"},{id:0,s:"Sun"},
+];
+const ALL_DAYS=[0,1,2,3,4,5,6];
 
 // ── Storage ───────────────────────────────────────────────────────────────────
-// prescriptions: [{ id, saltName, condition, doctorName, slots[], accent }]
-// stock:         [{ id, prescriptionId, brandName, lotNumber, expiryDate, quantity }]
-const KEY   = "meditrack_v8";
-const blank = () => ({ prescriptions:[], stock:[] });
-const load  = () => {
-  try { const r=localStorage.getItem(KEY); return r?{...blank(),...JSON.parse(r)}:blank(); }
-  catch { return blank(); }
-};
-const persist = d => { try { localStorage.setItem(KEY,JSON.stringify(d)); } catch {} };
-const uid   = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
-const today = () => new Date().toISOString().slice(0,10);
-const addDays = (iso,n) => {
-  const d=new Date(iso+"T12:00:00"); d.setDate(d.getDate()+n);
-  return d.toISOString().slice(0,10);
-};
-const fmtDate = iso => {
-  if(!iso) return "—";
-  return new Date(iso+"T12:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"});
-};
-const daysUntil = iso => {
-  if(!iso) return null;
-  const n=new Date(); n.setHours(0,0,0,0);
-  return Math.floor((new Date(iso+"T12:00:00")-n)/86400000);
-};
+// prescriptions: [{id,saltName,condition,doctorName,schedule:[{slotId,days:[]}],accent}]
+// stock:         [{id,prescriptionId,brandName,lotNumber,expiryDate,quantity,enteredDate}]
+// logs:          [{id,logKey,prescriptionId,date,slotId,takenAt,status}]
+// settings:      {trackingMode:"assume"|"confirm"}
+const KEY="meditrack_v9";
+const blank=()=>({prescriptions:[],stock:[],logs:[],settings:{trackingMode:"assume"}});
+const load=()=>{try{const r=localStorage.getItem(KEY);return r?{...blank(),...JSON.parse(r)}:blank();}catch{return blank();}};
+const persist=d=>{try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}};
+const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const today=()=>new Date().toISOString().slice(0,10);
+const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+const fmtDate=iso=>{if(!iso)return"—";return new Date(iso+"T12:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"});};
+const daysUntil=iso=>{if(!iso)return null;const n=new Date();n.setHours(0,0,0,0);return Math.floor((new Date(iso+"T12:00:00")-n)/86400000);};
 
 // ── Business logic ─────────────────────────────────────────────────────────────
-// Stock for a prescription sorted by earliest expiry first
-const rxStock = (stock, rxId) =>
+
+// Schedule entries for today's day-of-week
+const todayEntries=rx=>{
+  const dow=new Date().getDay();
+  return (rx.schedule||[]).filter(e=>e.days.includes(dow));
+};
+
+// Doses per week across all slots+days
+const dosesPerWeek=rx=>(rx.schedule||[]).reduce((s,e)=>s+e.days.length,0);
+
+// Count scheduled doses from a date string (inclusive) to yesterday (exclusive of today)
+const dosesConsumedSince=(rx,fromIso)=>{
+  const start=new Date(fromIso+"T00:00:00");
+  const end=new Date(); end.setHours(0,0,0,0);
+  const sched=rx.schedule||[];
+  let count=0;
+  for(let d=new Date(start);d<end;d.setDate(d.getDate()+1)){
+    const dow=d.getDay();
+    sched.forEach(e=>{if(e.days.includes(dow))count++;});
+  }
+  return count;
+};
+
+// Effective quantity: assume mode subtracts consumed since entry date
+const effectiveQty=(rx,item,mode)=>{
+  if(mode==="confirm") return Number(item.quantity)||0;
+  const consumed=dosesConsumedSince(rx,item.enteredDate||item.addedAt?.slice(0,10)||today());
+  return Math.max(0,(Number(item.quantity)||0)-consumed);
+};
+
+// Stock for a prescription, earliest expiry first
+const rxStock=(stock,rxId)=>
   stock.filter(s=>s.prescriptionId===rxId)
        .sort((a,b)=>(a.expiryDate||"9999").localeCompare(b.expiryDate||"9999"));
 
-const totalUnits = (stock, rxId) =>
-  rxStock(stock,rxId).reduce((s,m)=>s+(Number(m.quantity)||0),0);
+const totalEffective=(rx,stock,mode)=>
+  rxStock(stock,rx.id).reduce((s,item)=>s+effectiveQty(rx,item,mode),0);
 
-const supplyInfo = (rx, stock) => {
-  const dpd=(rx.slots||[]).length; if(!dpd) return null;
-  const total=totalUnits(stock,rx.id);
-  return { dpd, total, days:Math.floor(total/dpd) };
+const supplyInfo=(rx,stock,mode)=>{
+  const dpw=dosesPerWeek(rx); if(!dpw)return null;
+  const total=totalEffective(rx,stock,mode);
+  return{dpw,total,days:Math.floor(total*7/dpw)};
 };
 
-const runOutDate = (rx, stock) => {
-  const s=supplyInfo(rx,stock); if(!s||!s.days) return null;
+const runOutDate=(rx,stock,mode)=>{
+  const s=supplyInfo(rx,stock,mode); if(!s||!s.days)return null;
   return addDays(today(),s.days);
 };
 
-// Which stock item to use first (earliest expiry, non-zero qty)
-const activeStock = (stock, rxId) =>
-  rxStock(stock,rxId).find(s=>(Number(s.quantity)||0)>0);
+const activeStock=(rx,stock,mode)=>
+  rxStock(stock,rx.id).find(item=>effectiveQty(rx,item,mode)>0);
 
-// ── Atoms ─────────────────────────────────────────────────────────────────────
-const Badge = ({color="muted",children,small}) => {
-  const c={green:{bg:P.greenLight,fg:P.green},amber:{bg:P.amberLight,fg:P.amber},
-           red:{bg:P.redLight,fg:P.red},blue:{bg:P.blueLight,fg:P.blue},
-           muted:{bg:P.cream,fg:P.muted}}[color]||{bg:P.cream,fg:P.muted};
-  return <span style={{background:c.bg,color:c.fg,padding:small?"2px 8px":"3px 11px",
-    borderRadius:20,fontSize:small?11:12,fontWeight:700,
-    display:"inline-flex",alignItems:"center",gap:3}}>{children}</span>;
+// Human-readable schedule summary
+const schedSummary=rx=>{
+  const sched=rx.schedule||[];
+  if(!sched.length)return"Not scheduled";
+  return sched.map(e=>{
+    const slot=SLOT_MAP[e.slotId];
+    const allD=e.days.length===7;
+    const dayStr=allD?"daily":e.days.map(d=>DAYS.find(x=>x.id===d)?.s).filter(Boolean).join(", ");
+    return `${slot?.label} ${dayStr}`;
+  }).join(" · ");
 };
 
-const Btn = ({children,onClick,v="primary",sz="md",disabled,full,style:ex}) => {
+// ── Atoms ─────────────────────────────────────────────────────────────────────
+const Badge=({color="muted",children,small})=>{
+  const c={green:{bg:P.greenLight,fg:P.green},amber:{bg:P.amberLight,fg:P.amber},
+    red:{bg:P.redLight,fg:P.red},blue:{bg:P.blueLight,fg:P.blue},
+    muted:{bg:P.cream,fg:P.muted}}[color]||{bg:P.cream,fg:P.muted};
+  return <span style={{background:c.bg,color:c.fg,padding:small?"2px 8px":"3px 11px",
+    borderRadius:20,fontSize:small?11:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>
+    {children}</span>;
+};
+
+const Btn=({children,onClick,v="primary",sz="md",disabled,full,style:ex})=>{
   const size={lg:{f:17,p:"14px 24px"},md:{f:15,p:"10px 20px"},sm:{f:13,p:"7px 14px"}}[sz];
-  const vars={
-    primary:{bg:P.text,fg:"#fff",bd:"none"},success:{bg:P.green,fg:"#fff",bd:"none"},
+  const vars={primary:{bg:P.text,fg:"#fff",bd:"none"},success:{bg:P.green,fg:"#fff",bd:"none"},
     danger:{bg:P.red,fg:"#fff",bd:"none"},blue:{bg:P.blue,fg:"#fff",bd:"none"},
     ghost:{bg:"transparent",fg:P.text,bd:`1.5px solid ${P.border}`},
     subtle:{bg:P.cream,fg:P.text,bd:"none"}}[v];
-  return <button onClick={onClick} disabled={disabled} style={{
-    fontSize:size.f,padding:size.p,background:vars.bg,color:vars.fg,border:vars.bd,
-    borderRadius:12,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",
-    fontWeight:700,display:"inline-flex",alignItems:"center",gap:6,
-    opacity:disabled?0.5:1,width:full?"100%":"auto",justifyContent:"center",...ex}}>
-    {children}
-  </button>;
+  return <button onClick={onClick} disabled={disabled} style={{fontSize:size.f,padding:size.p,
+    background:vars.bg,color:vars.fg,border:vars.bd,borderRadius:12,
+    cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:700,
+    display:"inline-flex",alignItems:"center",gap:6,opacity:disabled?0.5:1,
+    width:full?"100%":"auto",justifyContent:"center",...ex}}>{children}</button>;
 };
 
-const Card = ({children,style,onClick}) =>
-  <div onClick={onClick} style={{background:P.card,borderRadius:16,
-    border:`1px solid ${P.border}`,boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
-    cursor:onClick?"pointer":undefined,...style}}>{children}</div>;
+const Card=({children,style,onClick})=>
+  <div onClick={onClick} style={{background:P.card,borderRadius:16,border:`1px solid ${P.border}`,
+    boxShadow:"0 2px 8px rgba(0,0,0,0.04)",cursor:onClick?"pointer":undefined,...style}}>
+    {children}</div>;
 
-const IS = {padding:"11px 14px",borderRadius:10,border:`1.5px solid ${P.border}`,
-  fontSize:16,fontFamily:"inherit",background:P.bg,color:P.text,
-  outline:"none",width:"100%",boxSizing:"border-box"};
+const IS={padding:"11px 14px",borderRadius:10,border:`1.5px solid ${P.border}`,
+  fontSize:16,fontFamily:"inherit",background:P.bg,color:P.text,outline:"none",
+  width:"100%",boxSizing:"border-box"};
 
-const Inp = ({label,type="text",value,onChange,placeholder,min,required}) =>
+const Inp=({label,type="text",value,onChange,placeholder,min,required})=>
   <label style={{display:"flex",flexDirection:"column",gap:5}}>
     <span style={{fontSize:13,fontWeight:700,color:P.muted,letterSpacing:0.3}}>
       {label}{required&&<span style={{color:P.red}}> *</span>}
@@ -133,7 +167,7 @@ const Inp = ({label,type="text",value,onChange,placeholder,min,required}) =>
       onBlur={e=>e.target.style.borderColor=P.border}/>
   </label>;
 
-const Sel = ({label,value,onChange,options,required}) =>
+const Sel=({label,value,onChange,options,required})=>
   <label style={{display:"flex",flexDirection:"column",gap:5}}>
     <span style={{fontSize:13,fontWeight:700,color:P.muted,letterSpacing:0.3}}>
       {label}{required&&<span style={{color:P.red}}> *</span>}
@@ -143,7 +177,7 @@ const Sel = ({label,value,onChange,options,required}) =>
     </select>
   </label>;
 
-const Confirm = ({msg,onYes,onNo}) =>
+const Confirm=({msg,onYes,onNo})=>
   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",
     alignItems:"center",justifyContent:"center",zIndex:9999,padding:24}}>
     <Card style={{padding:28,maxWidth:360,width:"100%",textAlign:"center"}}>
@@ -156,7 +190,7 @@ const Confirm = ({msg,onYes,onNo}) =>
     </Card>
   </div>;
 
-const Empty = ({icon,title,sub,action}) =>
+const Empty=({icon,title,sub,action})=>
   <div style={{textAlign:"center",padding:"40px 16px",color:P.muted}}>
     <div style={{fontSize:48,marginBottom:10}}>{icon}</div>
     <div style={{fontSize:17,fontWeight:700,color:P.text,marginBottom:6}}>{title}</div>
@@ -164,42 +198,114 @@ const Empty = ({icon,title,sub,action}) =>
     {action}
   </div>;
 
-const BackBtn = ({onClick}) =>
+const BackBtn=({onClick})=>
   <button onClick={onClick} style={{background:"none",border:"none",cursor:"pointer",
     display:"flex",alignItems:"center",gap:4,color:P.muted,fontSize:15,
     fontFamily:"inherit",padding:0}}>← Back</button>;
 
-const SlotPicker = ({selected,onChange}) => {
-  const toggle = id =>
-    onChange(selected.includes(id)?selected.filter(s=>s!==id):[...selected,id]);
-  return <div>
-    <div style={{fontSize:13,fontWeight:700,color:P.muted,marginBottom:8,letterSpacing:0.3}}>
-      When to take <span style={{color:P.red}}>*</span>
+// Toggle switch
+const Toggle=({on,onChange,label,sub})=>
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+    <div>
+      <div style={{fontWeight:700,fontSize:15}}>{label}</div>
+      {sub&&<div style={{fontSize:13,color:P.muted,marginTop:2}}>{sub}</div>}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-      {SLOTS.map(s=>{
-        const on=selected.includes(s.id);
-        return <button key={s.id} onClick={()=>toggle(s.id)} style={{
-          padding:"14px 8px",borderRadius:14,border:`2px solid ${on?P.text:P.border}`,
-          background:on?P.text:P.card,color:on?"#fff":P.text,cursor:"pointer",
-          fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-          <span style={{fontSize:24}}>{s.icon}</span>
-          <span style={{fontWeight:800,fontSize:14}}>{s.label}</span>
-          <span style={{fontSize:11,opacity:0.6}}>{s.hint}</span>
-        </button>;
-      })}
+    <div onClick={()=>onChange(!on)} style={{
+      width:52,height:28,borderRadius:14,background:on?P.green:P.border,
+      cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+      <div style={{position:"absolute",top:3,left:on?25:3,width:22,height:22,
+        borderRadius:"50%",background:"#fff",transition:"left .2s",
+        boxShadow:"0 1px 4px rgba(0,0,0,0.2)"}}/>
     </div>
   </div>;
-};
+
+// ── Weekly Schedule Picker ────────────────────────────────────────────────────
+function WeeklySchedulePicker({schedule,onChange}) {
+  const getEntry=slotId=>schedule.find(e=>e.slotId===slotId);
+  const isOn=slotId=>!!getEntry(slotId);
+
+  const toggleSlot=slotId=>{
+    if(isOn(slotId)) onChange(schedule.filter(e=>e.slotId!==slotId));
+    else onChange([...schedule,{slotId,days:[...ALL_DAYS]}]);
+  };
+
+  const setDays=(slotId,days)=>
+    onChange(schedule.map(e=>e.slotId===slotId?{...e,days}:e));
+
+  const toggleDay=(slotId,day)=>{
+    const entry=getEntry(slotId); if(!entry)return;
+    const next=entry.days.includes(day)
+      ?entry.days.filter(d=>d!==day)
+      :[...entry.days,day];
+    if(next.length>0)setDays(slotId,next);
+  };
+
+  return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{fontSize:13,fontWeight:700,color:P.muted,letterSpacing:0.3}}>
+      Schedule <span style={{color:P.red}}>*</span>
+    </div>
+    {SLOTS.map(slot=>{
+      const on=isOn(slot.id);
+      const entry=getEntry(slot.id);
+      const allD=entry?.days.length===7;
+      return <div key={slot.id}>
+        {/* Slot row */}
+        <div onClick={()=>toggleSlot(slot.id)} style={{display:"flex",alignItems:"center",
+          justifyContent:"space-between",padding:"11px 14px",
+          borderRadius:on?"12px 12px 0 0":"12px",
+          border:`1.5px solid ${on?P.text:P.border}`,
+          background:on?P.text:P.card,cursor:"pointer",
+          borderBottom:on?"none":undefined}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,color:on?"#fff":P.text}}>
+            <span style={{fontSize:22}}>{slot.icon}</span>
+            <span style={{fontWeight:800,fontSize:15}}>{slot.label}</span>
+            <span style={{fontSize:12,opacity:0.6}}>{slot.hint}</span>
+          </div>
+          <span style={{fontSize:12,fontWeight:800,color:on?"rgba(255,255,255,0.8)":P.muted}}>
+            {on?"ON":"OFF"}
+          </span>
+        </div>
+        {/* Day picker */}
+        {on&&<div style={{padding:"10px 12px",background:P.cream,
+          border:`1.5px solid ${P.text}`,borderTop:"none",borderRadius:"0 0 12px 12px",marginBottom:2}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {/* Every day shortcut */}
+            <button onClick={()=>setDays(slot.id,[...ALL_DAYS])} style={{
+              padding:"5px 10px",borderRadius:8,border:`1.5px solid ${P.border}`,
+              background:allD?P.green:P.card,color:allD?"#fff":P.muted,
+              fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+              Every day
+            </button>
+            {DAYS.map(d=>{
+              const dayOn=entry.days.includes(d.id);
+              return <button key={d.id} onClick={()=>toggleDay(slot.id,d.id)} style={{
+                padding:"5px 9px",borderRadius:8,border:`1.5px solid ${P.border}`,
+                background:dayOn&&!allD?P.amber:dayOn&&allD?P.cream:P.card,
+                color:dayOn&&!allD?"#fff":dayOn&&allD?P.muted:P.muted,
+                fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+                {d.s}
+              </button>;
+            })}
+          </div>
+          {!allD&&entry.days.length>0&&<div style={{fontSize:11,color:P.amber,marginTop:6,fontWeight:700}}>
+            {entry.days.map(d=>DAYS.find(x=>x.id===d)?.s).filter(Boolean).join(", ")}
+          </div>}
+        </div>}
+      </div>;
+    })}
+    {schedule.length===0&&
+      <div style={{color:P.red,fontSize:13}}>⚠ Enable at least one time slot.</div>}
+  </div>;
+}
 
 // ── Prescription Form ─────────────────────────────────────────────────────────
 function PrescriptionForm({existing,onSave,onCancel}) {
-  const [salt,    setSalt]    = useState(existing?.saltName    ||"");
-  const [cond,    setCond]    = useState(existing?.condition   ||"");
-  const [doctor,  setDoctor]  = useState(existing?.doctorName  ||"");
-  const [slots,   setSlots]   = useState(existing?.slots       ||["morning"]);
-  const accent = existing?.accent||ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
-  const valid  = salt.trim()&&slots.length>0;
+  const [salt,   setSalt]   = useState(existing?.saltName   ||"");
+  const [cond,   setCond]   = useState(existing?.condition  ||"");
+  const [doctor, setDoctor] = useState(existing?.doctorName ||"");
+  const [sched,  setSched]  = useState(existing?.schedule   ||[]);
+  const accent=existing?.accent||ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
+  const valid=salt.trim()&&sched.length>0&&sched.every(e=>e.days.length>0);
 
   return <div style={{maxWidth:480,margin:"0 auto"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
@@ -208,30 +314,26 @@ function PrescriptionForm({existing,onSave,onCancel}) {
         {existing?"Edit Prescription":"Add Prescription"}
       </h2>
     </div>
-
     <Card style={{padding:"12px 16px",background:P.blueLight,border:`1px solid ${P.blue}`,marginBottom:20}}>
       <div style={{fontSize:13,color:P.blue,lineHeight:1.6}}>
-        💡 A prescription is what your doctor writes — the <strong>salt / generic name</strong>
-        (e.g. "Metformin 500mg"). You'll add the actual branded medicines you purchase separately.
+        💡 Enter the <strong>salt / generic name</strong> from the prescription
+        (e.g. "Metformin 500mg"). You'll add branded purchases separately.
       </div>
     </Card>
-
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
       <Inp label="Salt / Generic Name" value={salt} onChange={setSalt}
         placeholder="e.g. Metformin 500mg" required/>
       <Inp label="Prescribed for (condition)" value={cond} onChange={setCond}
-        placeholder="e.g. Type 2 Diabetes / Blood Sugar Control"/>
+        placeholder="e.g. Type 2 Diabetes"/>
       <Inp label="Doctor's Name (optional)" value={doctor} onChange={setDoctor}
         placeholder="e.g. Dr. Sharma"/>
-      <SlotPicker selected={slots} onChange={setSlots}/>
-      {slots.length===0&&
-        <div style={{color:P.red,fontSize:13}}>⚠ Select at least one time slot.</div>}
+      <WeeklySchedulePicker schedule={sched} onChange={setSched}/>
     </div>
     <div style={{display:"flex",gap:12,marginTop:28}}>
       <Btn v="ghost" onClick={onCancel} full>Cancel</Btn>
       <Btn v="success" onClick={()=>valid&&onSave({
-        id:existing?.id||uid(), saltName:salt.trim(), condition:cond.trim(),
-        doctorName:doctor.trim(), slots, accent,
+        id:existing?.id||uid(),saltName:salt.trim(),condition:cond.trim(),
+        doctorName:doctor.trim(),schedule:sched,accent,
         createdAt:existing?.createdAt||new Date().toISOString(),
       })} disabled={!valid} full>
         {existing?"Save Changes":"Add Prescription"}
@@ -240,18 +342,19 @@ function PrescriptionForm({existing,onSave,onCancel}) {
   </div>;
 }
 
-// ── Stock (Purchase) Form ─────────────────────────────────────────────────────
+// ── Stock Form ────────────────────────────────────────────────────────────────
 function StockForm({prescriptions,existing,defaultRxId,onSave,onCancel}) {
-  const initRx = existing?.prescriptionId||defaultRxId||prescriptions[0]?.id||"";
-  const [rxId,     setRxId]     = useState(initRx);
-  const [brand,    setBrand]    = useState(existing?.brandName  ||"");
-  const [lot,      setLot]      = useState(existing?.lotNumber  ||"");
-  const [expiry,   setExpiry]   = useState(existing?.expiryDate ||"");
-  const [quantity, setQuantity] = useState(existing?.quantity?String(existing.quantity):"");
+  const initRx=existing?.prescriptionId||defaultRxId||prescriptions[0]?.id||"";
+  const [rxId,  setRxId]  = useState(initRx);
+  const [brand, setBrand] = useState(existing?.brandName  ||"");
+  const [lot,   setLot]   = useState(existing?.lotNumber  ||"");
+  const [exp,   setExp]   = useState(existing?.expiryDate ||"");
+  const [qty,   setQty]   = useState(existing?.quantity?String(existing.quantity):"");
+  const [eDate, setEDate] = useState(existing?.enteredDate||today());
 
-  const valid = brand.trim()&&rxId&&quantity&&Number(quantity)>0;
-  const rxOptions = prescriptions.map(r=>({v:r.id,l:`${r.saltName}${r.condition?` · ${r.condition}`:""}`}));
-  if(!rxOptions.length) rxOptions.push({v:"",l:"— Add a prescription first —"});
+  const valid=brand.trim()&&rxId&&qty&&Number(qty)>0;
+  const rxOptions=prescriptions.map(r=>({v:r.id,l:`${r.saltName}${r.condition?` · ${r.condition}`:""}`}));
+  if(!rxOptions.length)rxOptions.push({v:"",l:"— Add a prescription first —"});
 
   return <div style={{maxWidth:480,margin:"0 auto"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
@@ -260,39 +363,33 @@ function StockForm({prescriptions,existing,defaultRxId,onSave,onCancel}) {
         {existing?"Edit Purchase":"Add Purchase"}
       </h2>
     </div>
-
     <Card style={{padding:"12px 16px",background:P.amberLight,border:`1px solid ${P.amber}`,marginBottom:20}}>
       <div style={{fontSize:13,color:P.amber,lineHeight:1.6}}>
-        💡 Add one entry per box or strip you purchased. Same salt, different brand?
-        Add separate entries — the app will tell you which to open first based on expiry.
+        💡 Add one entry per box or strip. Same salt, different brand — add separately.
+        The app will tell you which to open first based on expiry.
       </div>
     </Card>
-
     {!prescriptions.length&&<Card style={{padding:"12px 16px",background:P.redLight,
-      border:`1px solid ${P.red}`,marginBottom:20}}>
-      <div style={{fontSize:13,color:P.red}}>
-        ⚠ No prescriptions yet — go to the Prescriptions tab and add one first.
-      </div>
+      border:`1px solid ${P.red}`,marginBottom:16}}>
+      <div style={{fontSize:13,color:P.red}}>⚠ Add a prescription first.</div>
     </Card>}
-
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
-      <Sel label="Prescription (salt / generic)" value={rxId} onChange={setRxId}
-        options={rxOptions} required/>
+      <Sel label="Prescription (salt)" value={rxId} onChange={setRxId} options={rxOptions} required/>
       <Inp label="Brand Name" value={brand} onChange={setBrand}
         placeholder="e.g. Glucophage / Metlong / Generic" required/>
       <Inp label="Batch / Lot Number (optional)" value={lot} onChange={setLot}
         placeholder="e.g. LOT-2024-AB12"/>
-      <Inp label="Expiry Date" type="date" value={expiry} onChange={setExpiry}/>
-      <Inp label="Quantity (tablets / units in this purchase)" type="number"
-        value={quantity} onChange={setQuantity} min="1" required/>
+      <Inp label="Expiry Date" type="date" value={exp} onChange={setExp}/>
+      <Inp label="Quantity on hand (tablets / units)" type="number"
+        value={qty} onChange={setQty} min="1" required/>
+      <Inp label="Date this quantity was counted" type="date" value={eDate} onChange={setEDate}/>
     </div>
     <div style={{display:"flex",gap:12,marginTop:28}}>
       <Btn v="ghost" onClick={onCancel} full>Cancel</Btn>
       <Btn v="success" onClick={()=>valid&&onSave({
-        id:existing?.id||uid(), prescriptionId:rxId,
-        brandName:brand.trim(), lotNumber:lot.trim(),
-        expiryDate:expiry, quantity:Number(quantity),
-        addedAt:existing?.addedAt||new Date().toISOString(),
+        id:existing?.id||uid(),prescriptionId:rxId,brandName:brand.trim(),
+        lotNumber:lot.trim(),expiryDate:exp,quantity:Number(qty),
+        enteredDate:eDate,addedAt:existing?.addedAt||new Date().toISOString(),
       })} disabled={!valid||!prescriptions.length} full>
         {existing?"Save Changes":"Add Purchase"}
       </Btn>
@@ -301,19 +398,18 @@ function StockForm({prescriptions,existing,defaultRxId,onSave,onCancel}) {
 }
 
 // ── Prescription Detail ───────────────────────────────────────────────────────
-function PrescriptionDetail({rx,stock,dispatch,onBack,onEditRx,onAddStock,onEditStock}) {
+function PrescriptionDetail({rx,stock,mode,dispatch,onBack,onEditRx,onAddStock,onEditStock}) {
   const [confirm,setConfirm]=useState(null);
 
-  const allStock  = rxStock(stock,rx.id);
-  const supply    = supplyInfo(rx,stock);
-  const runOut    = runOutDate(rx,stock);
-  const current   = activeStock(stock,rx.id);
-  const supDays   = supply?.days??0;
-  const supColor  = supDays>90?P.green:supDays>30?P.amber:supply?P.red:P.muted;
-  const slotLabels= (rx.slots||[]).map(s=>SLOT_MAP[s]?.label).join(" + ");
+  const all     =rxStock(stock,rx.id);
+  const supply  =supplyInfo(rx,stock,mode);
+  const runOut  =runOutDate(rx,stock,mode);
+  const current =activeStock(rx,stock,mode);
+  const supDays =supply?.days??0;
+  const supColor=supDays>90?P.green:supDays>30?P.amber:supply?P.red:P.muted;
 
   return <div style={{maxWidth:540,margin:"0 auto"}}>
-    {confirm?.t==="stock"&&<Confirm msg={`Delete this purchase entry?`}
+    {confirm?.t==="stock"&&<Confirm msg="Delete this purchase entry?"
       onYes={()=>{dispatch({type:"DEL_STOCK",id:confirm.id});setConfirm(null);}}
       onNo={()=>setConfirm(null)}/>}
     {confirm?.t==="rx"&&<Confirm msg={`Delete prescription "${rx.saltName}" and all its stock?`}
@@ -328,8 +424,9 @@ function PrescriptionDetail({rx,stock,dispatch,onBack,onEditRx,onAddStock,onEdit
           <div style={{width:12,height:12,borderRadius:"50%",background:rx.accent||P.green,flexShrink:0}}/>
           <h2 style={{fontSize:20,fontWeight:900,margin:0}}>{rx.saltName}</h2>
         </div>
-        {rx.condition&&<div style={{fontSize:13,color:P.muted,marginTop:2,marginLeft:20}}>{rx.condition}</div>}
+        {rx.condition&&<div style={{fontSize:13,color:P.muted,marginTop:1,marginLeft:20}}>{rx.condition}</div>}
         {rx.doctorName&&<div style={{fontSize:13,color:P.blue,marginTop:1,marginLeft:20}}>👨‍⚕️ {rx.doctorName}</div>}
+        <div style={{fontSize:12,color:P.muted,marginTop:2,marginLeft:20}}>{schedSummary(rx)}</div>
       </div>
       <Btn v="ghost" sz="sm" onClick={()=>onEditRx(rx)}>Edit</Btn>
       <Btn v="danger" sz="sm" onClick={()=>setConfirm({t:"rx"})}>🗑</Btn>
@@ -339,15 +436,13 @@ function PrescriptionDetail({rx,stock,dispatch,onBack,onEditRx,onAddStock,onEdit
     <Card style={{padding:"18px 20px",marginBottom:16,
       background:supply&&supDays<=30?P.redLight:supply&&supDays<=90?P.amberLight:P.greenLight,
       border:`1px solid ${supColor}`}}>
-      <div style={{fontSize:11,fontWeight:800,color:P.muted,letterSpacing:0.8,marginBottom:12}}>
-        SUPPLY OVERVIEW
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+      <div style={{fontSize:11,fontWeight:800,color:P.muted,letterSpacing:0.8,marginBottom:12}}>SUPPLY OVERVIEW</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
         {[
-          {label:"Days of supply",   val:supply?`${supply.days} days`:"No stock", big:true },
-          {label:"Runs out on",      val:runOut?fmtDate(runOut):"—",              big:false},
-          {label:"Total units left", val:supply?supply.total:0,                   big:false},
-          {label:"Doses per day",    val:supply?supply.dpd:"—",                   big:false},
+          {label:"Days of supply",    val:supply?`${supply.days} days`:"No stock",big:true},
+          {label:"Runs out on",       val:runOut?fmtDate(runOut):"—",big:false},
+          {label:"Total units left",  val:supply?supply.total:0,big:false},
+          {label:"Doses/week",        val:supply?supply.dpw:"—",big:false},
         ].map((s,i)=>(
           <div key={i} style={{padding:"10px 12px",background:"rgba(255,255,255,0.6)",borderRadius:10}}>
             <div style={{fontSize:i===0?26:20,fontWeight:900,color:i===0?supColor:P.text}}>{s.val}</div>
@@ -355,60 +450,62 @@ function PrescriptionDetail({rx,stock,dispatch,onBack,onEditRx,onAddStock,onEdit
           </div>
         ))}
       </div>
-      <div style={{fontSize:13,color:P.muted}}>Schedule: {slotLabels||"—"}</div>
+      <div style={{fontSize:12,color:P.muted}}>
+        Mode: <strong>{mode==="assume"?"Automatic (assumed taken on schedule)":"Manual (confirm each dose)"}</strong>
+      </div>
     </Card>
 
     {/* Open now */}
     {current&&<Card style={{padding:"14px 16px",marginBottom:16,border:`2px solid ${P.green}`}}>
-      <div style={{fontSize:11,fontWeight:800,color:P.green,letterSpacing:0.8,marginBottom:6}}>
-        🟢 OPEN THIS NOW
-      </div>
+      <div style={{fontSize:11,fontWeight:800,color:P.green,letterSpacing:0.8,marginBottom:6}}>🟢 OPEN THIS NOW</div>
       <div style={{fontWeight:800,fontSize:16}}>{current.brandName}</div>
-      <div style={{fontSize:12,color:P.muted,marginTop:1}}>Same salt as: {rx.saltName}</div>
-      <div style={{fontSize:13,color:P.muted,marginTop:6,display:"flex",gap:14,flexWrap:"wrap"}}>
+      <div style={{fontSize:12,color:P.muted,marginTop:1}}>Salt: {rx.saltName}</div>
+      <div style={{fontSize:13,color:P.muted,marginTop:5,display:"flex",gap:14,flexWrap:"wrap"}}>
         {current.lotNumber&&<span>Lot: <strong style={{color:P.text}}>{current.lotNumber}</strong></span>}
         <span>Expiry: <strong style={{color:P.text}}>{fmtDate(current.expiryDate)}</strong></span>
-        <span>Qty: <strong style={{color:P.text}}>{current.quantity} units</strong></span>
+        <span>Effective qty: <strong style={{color:P.text}}>{effectiveQty(rx,current,mode)} units</strong></span>
       </div>
     </Card>}
 
-    {/* Stock list */}
+    {/* All stock */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:11,fontWeight:800,color:P.muted,letterSpacing:0.8}}>
-        ALL PURCHASES — OPEN EARLIEST EXPIRY FIRST
+        ALL STOCK — EARLIEST EXPIRY FIRST
       </div>
       <Btn v="subtle" sz="sm" onClick={()=>onAddStock(rx)}>+ Add</Btn>
     </div>
 
-    {allStock.length===0
+    {all.length===0
       ?<Empty icon="📦" title="No purchases yet"
-          sub="Add the medicines you've bought for this prescription."
+          sub="Add the medicines you have bought for this prescription."
           action={<Btn v="primary" onClick={()=>onAddStock(rx)}>+ Add Purchase</Btn>}/>
-      :allStock.map((s,idx)=>{
+      :all.map((s,idx)=>{
         const d=daysUntil(s.expiryDate);
         const expColor=d===null?"muted":d<0?"red":d<=30?"red":d<=90?"amber":"green";
+        const eQty=effectiveQty(rx,s,mode);
         const isCurrent=s.id===current?.id;
         return <Card key={s.id} style={{padding:"14px 16px",marginBottom:10,
           borderLeft:`4px solid ${isCurrent?P.green:P.amber}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
             <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
-                <span style={{fontSize:12,fontWeight:800,color:P.muted,
-                  background:P.cream,borderRadius:6,padding:"1px 7px"}}>#{idx+1}</span>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:5}}>
+                <span style={{fontSize:12,fontWeight:800,color:P.muted,background:P.cream,
+                  borderRadius:6,padding:"1px 7px"}}>#{idx+1}</span>
                 <span style={{fontWeight:800,fontSize:15}}>{s.brandName}</span>
-                {isCurrent&&<Badge color="green" small>🟢 Open now</Badge>}
-                {!isCurrent&&<Badge color="muted" small>📦 Next</Badge>}
+                {isCurrent&&<Badge color="green" small>🟢 Open</Badge>}
+                {!isCurrent&&eQty>0&&<Badge color="muted" small>📦 Next</Badge>}
+                {eQty===0&&<Badge color="muted" small>✅ Done</Badge>}
                 {d!==null&&<Badge color={expColor} small>
-                  {d<0?`Expired ${Math.abs(d)}d ago`:d===0?"Expires today":`Exp ${d}d`}
+                  {d<0?`Exp ${Math.abs(d)}d ago`:d===0?"Exp today":`Exp ${d}d`}
                 </Badge>}
               </div>
-              <div style={{fontSize:12,color:P.muted,marginBottom:4}}>
-                Same salt: <em>{rx.saltName}</em>
-              </div>
-              <div style={{fontSize:13,color:P.muted,display:"flex",gap:14,flexWrap:"wrap"}}>
+              <div style={{fontSize:13,color:P.muted,display:"flex",gap:12,flexWrap:"wrap"}}>
                 {s.lotNumber&&<span>Lot: <strong style={{color:P.text}}>{s.lotNumber}</strong></span>}
                 <span>Expiry: <strong style={{color:P.text}}>{fmtDate(s.expiryDate)}</strong></span>
-                <span>Qty: <strong style={{color:P.text}}>{s.quantity} units</strong></span>
+                <span>Counted: <strong style={{color:P.text}}>{s.quantity}</strong> on {fmtDate(s.enteredDate)}</span>
+                {mode==="assume"&&<span style={{color:eQty===0?P.red:P.green,fontWeight:700}}>
+                  Est. remaining: {eQty}
+                </span>}
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
@@ -422,27 +519,24 @@ function PrescriptionDetail({rx,stock,dispatch,onBack,onEditRx,onAddStock,onEdit
   </div>;
 }
 
-// ── Prescriptions screen ──────────────────────────────────────────────────────
-function PrescriptionsScreen({prescriptions,stock,onSelect,onAdd}) {
+// ── Prescriptions list ────────────────────────────────────────────────────────
+function PrescriptionsScreen({prescriptions,stock,mode,onSelect,onAdd}) {
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <h2 style={{fontSize:22,fontWeight:900,margin:0}}>Prescriptions</h2>
       <Btn v="primary" sz="sm" onClick={onAdd}>+ Add</Btn>
     </div>
-
     {prescriptions.length===0
       ?<Empty icon="📋" title="No prescriptions yet"
-          sub={'Add a prescription like "Metformin 500mg for Diabetes" — then add the brands you buy under it.'}
+          sub={'Add a prescription like "Metformin 500mg" — then add the brands you buy under it.'}
           action={<Btn v="primary" onClick={onAdd}>+ Add Prescription</Btn>}/>
       :prescriptions.map(rx=>{
-        const supply  =supplyInfo(rx,stock);
-        const runOut  =runOutDate(rx,stock);
-        const current =activeStock(stock,rx.id);
-        const supDays =supply?.days??0;
+        const supply =supplyInfo(rx,stock,mode);
+        const runOut =runOutDate(rx,stock,mode);
+        const cur    =activeStock(rx,stock,mode);
+        const supDays=supply?.days??0;
         const supColor=supDays>90?"green":supDays>30?"amber":supply?"red":"muted";
         const packCount=stock.filter(s=>s.prescriptionId===rx.id).length;
-        const slotIcons=(rx.slots||[]).map(s=>SLOT_MAP[s]?.icon).join(" ");
-
         return <Card key={rx.id} onClick={()=>onSelect(rx)}
           style={{padding:"16px 18px",marginBottom:12,cursor:"pointer",
             borderLeft:`4px solid ${rx.accent||P.green}`}}>
@@ -450,18 +544,17 @@ function PrescriptionsScreen({prescriptions,stock,onSelect,onAdd}) {
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:3}}>
                 <span style={{fontWeight:900,fontSize:17}}>{rx.saltName}</span>
-                {supply
-                  ?<Badge color={supColor} small>{supply.days}d · {supply.total} units</Badge>
+                {supply?<Badge color={supColor} small>{supply.days}d · {supply.total} units</Badge>
                   :<Badge color="muted" small>No stock</Badge>}
               </div>
               {rx.condition&&<div style={{fontSize:13,color:P.muted,marginBottom:2}}>{rx.condition}</div>}
-              {rx.doctorName&&<div style={{fontSize:12,color:P.blue,marginBottom:5}}>👨‍⚕️ {rx.doctorName}</div>}
-              {current&&<div style={{fontSize:13,color:P.green,fontWeight:700,marginBottom:2}}>
-                🟢 {current.brandName}{current.lotNumber?` · Lot ${current.lotNumber}`:""} · {current.quantity} units
+              {rx.doctorName&&<div style={{fontSize:12,color:P.blue,marginBottom:4}}>👨‍⚕️ {rx.doctorName}</div>}
+              {cur&&<div style={{fontSize:13,color:P.green,fontWeight:700,marginBottom:2}}>
+                🟢 {cur.brandName}{cur.lotNumber?` · Lot ${cur.lotNumber}`:""} · {effectiveQty(rx,cur,mode)} units
               </div>}
-              <div style={{fontSize:12,color:supDays<=30&&supply?P.red:P.muted,marginTop:3}}>
+              <div style={{fontSize:12,color:supDays<=30&&supply?P.red:P.muted,marginTop:2}}>
                 {runOut&&<>Runs out: <strong>{fmtDate(runOut)}</strong> · </>}
-                {packCount} purchase{packCount!==1?"s":""} · {slotIcons}
+                {packCount} purchase{packCount!==1?"s":""} · {schedSummary(rx)}
               </div>
             </div>
             <span style={{fontSize:20,color:P.muted,alignSelf:"center"}}>›</span>
@@ -473,55 +566,44 @@ function PrescriptionsScreen({prescriptions,stock,onSelect,onAdd}) {
 }
 
 // ── Purchases screen ──────────────────────────────────────────────────────────
-function PurchasesScreen({stock,prescriptions,onAdd,onEdit,onDelete}) {
-  const [search,    setSearch]    = useState("");
-  const [filterRx,  setFilterRx]  = useState("all");
-  const [confirm,   setConfirm]   = useState(null);
-
-  const rxOptions=[{v:"all",l:"All Prescriptions"},...prescriptions.map(r=>({v:r.id,l:r.saltName}))];
+function PurchasesScreen({stock,prescriptions,mode,onAdd,onEdit,onDelete}) {
+  const [search,   setSearch]  =useState("");
+  const [filterRx, setFilterRx]=useState("all");
+  const [confirm,  setConfirm] =useState(null);
+  const rxOptions=[{v:"all",l:"All"},...prescriptions.map(r=>({v:r.id,l:r.saltName}))];
   const getRx=id=>prescriptions.find(r=>r.id===id);
 
-  const filtered=stock
-    .filter(s=>{
-      const matchSearch=!search
-        ||s.brandName.toLowerCase().includes(search.toLowerCase())
-        ||s.lotNumber?.toLowerCase().includes(search.toLowerCase());
-      const matchRx=filterRx==="all"||s.prescriptionId===filterRx;
-      return matchSearch&&matchRx;
-    })
-    .sort((a,b)=>(a.expiryDate||"9999").localeCompare(b.expiryDate||"9999"));
+  const filtered=stock.filter(s=>{
+    const ok1=!search||s.brandName.toLowerCase().includes(search.toLowerCase())
+      ||s.lotNumber?.toLowerCase().includes(search.toLowerCase());
+    const ok2=filterRx==="all"||s.prescriptionId===filterRx;
+    return ok1&&ok2;
+  }).sort((a,b)=>(a.expiryDate||"9999").localeCompare(b.expiryDate||"9999"));
 
   return <div>
-    {confirm&&<Confirm msg={`Delete this purchase entry?`}
+    {confirm&&<Confirm msg="Delete this purchase entry?"
       onYes={()=>{onDelete(confirm.id);setConfirm(null);}} onNo={()=>setConfirm(null)}/>}
-
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h2 style={{fontSize:22,fontWeight:900,margin:0}}>Purchases</h2>
       <Btn v="primary" sz="sm" onClick={onAdd}>+ Add</Btn>
     </div>
-
     <input value={search} onChange={e=>setSearch(e.target.value)}
-      placeholder="🔍 Search brand or lot number…"
-      style={{...IS,marginBottom:10}}/>
-
+      placeholder="🔍 Search brand or lot…" style={{...IS,marginBottom:10}}/>
     <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
-      {rxOptions.map(o=>(
-        <button key={o.v} onClick={()=>setFilterRx(o.v)} style={{
-          padding:"6px 14px",borderRadius:20,border:`1.5px solid ${P.border}`,
-          background:filterRx===o.v?P.text:P.card,color:filterRx===o.v?"#fff":P.muted,
-          fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",fontSize:13,
-          fontFamily:"inherit",flexShrink:0}}>{o.l}</button>
-      ))}
+      {rxOptions.map(o=><button key={o.v} onClick={()=>setFilterRx(o.v)} style={{
+        padding:"6px 14px",borderRadius:20,border:`1.5px solid ${P.border}`,
+        background:filterRx===o.v?P.text:P.card,color:filterRx===o.v?"#fff":P.muted,
+        fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",fontSize:13,
+        fontFamily:"inherit",flexShrink:0}}>{o.l}</button>)}
     </div>
-
     {filtered.length===0
-      ?<Empty icon="📦" title="No purchases found"
-          sub="Add a purchase to track stock."
+      ?<Empty icon="📦" title="No purchases found" sub="Add a purchase to track stock."
           action={<Btn v="primary" onClick={onAdd}>+ Add Purchase</Btn>}/>
       :filtered.map(s=>{
         const rx=getRx(s.prescriptionId);
         const d=daysUntil(s.expiryDate);
         const expColor=d===null?"muted":d<0?"red":d<=30?"red":d<=90?"amber":"green";
+        const eQty=rx?effectiveQty(rx,s,mode):Number(s.quantity);
         return <Card key={s.id} style={{padding:"14px 16px",marginBottom:10,
           borderLeft:`4px solid ${rx?.accent||P.muted}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
@@ -529,16 +611,17 @@ function PurchasesScreen({stock,prescriptions,onAdd,onEdit,onDelete}) {
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
                 <span style={{fontWeight:800,fontSize:15}}>{s.brandName}</span>
                 {d!==null&&<Badge color={expColor} small>
-                  {d<0?`Expired ${Math.abs(d)}d ago`:d===0?"Expires today":`Exp ${d}d`}
+                  {d<0?`Exp ${Math.abs(d)}d ago`:d===0?"Exp today":`Exp ${d}d`}
                 </Badge>}
               </div>
               {rx&&<div style={{fontSize:12,fontWeight:700,color:rx.accent||P.muted,marginBottom:4}}>
                 ● {rx.saltName}{rx.condition?` · ${rx.condition}`:""}
               </div>}
-              <div style={{fontSize:13,color:P.muted,display:"flex",gap:14,flexWrap:"wrap"}}>
+              <div style={{fontSize:13,color:P.muted,display:"flex",gap:12,flexWrap:"wrap"}}>
                 {s.lotNumber&&<span>Lot: <strong style={{color:P.text}}>{s.lotNumber}</strong></span>}
                 <span>Expiry: <strong style={{color:P.text}}>{fmtDate(s.expiryDate)}</strong></span>
-                <span>Qty: <strong style={{color:P.text}}>{s.quantity} units</strong></span>
+                <span>Counted: <strong style={{color:P.text}}>{s.quantity}</strong></span>
+                {mode==="assume"&&<span style={{fontWeight:700,color:eQty>0?P.green:P.red}}>Est. left: {eQty}</span>}
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
@@ -553,104 +636,128 @@ function PurchasesScreen({stock,prescriptions,onAdd,onEdit,onDelete}) {
 }
 
 // ── Today screen ──────────────────────────────────────────────────────────────
-function TodayScreen({prescriptions,stock,goToRx}) {
+function TodayScreen({prescriptions,stock,logs,mode,dispatch,goToRx}) {
   const nowH     =new Date().getHours();
   const curSlotId=nowH<12?"morning":nowH<16?"noon":nowH<20?"evening":"bed";
-  const scheduled=prescriptions.filter(r=>(r.slots||[]).length>0);
 
-  const alerts=scheduled.filter(rx=>{
-    const s=supplyInfo(rx,stock); return s&&s.days<=30;
+  // Build today's dose list from schedules
+  const todayDoses=[];
+  prescriptions.forEach(rx=>{
+    todayEntries(rx).forEach(entry=>{
+      const logKey=`${today()}_${rx.id}_${entry.slotId}`;
+      const log=logs.find(l=>l.logKey===logKey);
+      todayDoses.push({rx,slotId:entry.slotId,log});
+    });
   });
 
+  const markDose=(rx,slotId,status)=>dispatch({type:"LOG",rx,slotId,status});
+
+  // Group by slot
   const grouped=SLOTS.map(slot=>({
-    slot, rxs:scheduled.filter(r=>r.slots.includes(slot.id)),
-  })).filter(g=>g.rxs.length>0);
+    slot,items:todayDoses.filter(d=>d.slotId===slot.id),
+  })).filter(g=>g.items.length>0);
+
+  // Low supply alerts ≤ 30 days
+  const alerts=prescriptions.filter(rx=>{
+    const s=supplyInfo(rx,stock,mode); return s&&s.days<=30;
+  });
+
+  const dow=new Date().getDay();
+  const dowLabel=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dow];
 
   return <div>
     {/* Header */}
     <div style={{background:P.text,color:"#fff",padding:"22px 20px 28px",
       borderRadius:"0 0 24px 24px",marginBottom:20}}>
       <div style={{fontSize:13,opacity:0.6,marginBottom:4}}>
-        {new Date().toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long"})}
+        {new Date().toLocaleDateString("en-AU",{day:"numeric",month:"long",year:"numeric"})}
       </div>
       <div style={{fontSize:26,fontWeight:900}}>Daily Schedule</div>
-      <div style={{fontSize:13,opacity:0.7,marginTop:4}}>
-        {scheduled.length} prescription{scheduled.length!==1?"s":""}
+      <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:13,opacity:0.7}}>{dowLabel}</span>
+        <span style={{fontSize:11,opacity:0.6,background:"rgba(255,255,255,0.15)",
+          padding:"2px 10px",borderRadius:10}}>
+          {mode==="assume"?"Auto tracking":"Manual confirm"}
+        </span>
       </div>
     </div>
 
-    {/* Low supply alerts */}
+    {/* Alerts */}
     {alerts.map(rx=>{
-      const s=supplyInfo(rx,stock);
-      const run=runOutDate(rx,stock);
+      const s=supplyInfo(rx,stock,mode);
+      const run=runOutDate(rx,stock,mode);
       return <Card key={rx.id} style={{padding:"10px 14px",marginBottom:10,
         background:P.redLight,border:`1px solid ${P.red}`}}>
         <div style={{fontSize:14,color:P.red,lineHeight:1.5}}>
-          ⚠ <strong>{rx.saltName}</strong> — only <strong>{s.days} days</strong> left.
+          ⚠ <strong>{rx.saltName}</strong> — only <strong>{s.days}d</strong> left.
           {run&&<> Runs out <strong>{fmtDate(run)}</strong>.</>}
         </div>
       </Card>;
     })}
 
+    {/* Schedule */}
     {grouped.length===0
-      ?<Empty icon="💊" title="Nothing scheduled"
-          sub="Add a prescription and set a schedule to see it here."/>
-      :grouped.map(({slot,rxs})=>(
-        <div key={slot.id} style={{marginBottom:28}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,
-            paddingBottom:8,borderBottom:`1px solid ${P.border}`}}>
-            <span style={{fontSize:22}}>{slot.icon}</span>
-            <div>
-              <span style={{fontWeight:900,fontSize:16,
-                color:slot.id===curSlotId?P.text:P.muted}}>{slot.label}</span>
-              <span style={{fontSize:13,color:P.muted,marginLeft:6}}>{slot.hint}</span>
-            </div>
-            {slot.id===curSlotId&&<Badge color="green" small>Now</Badge>}
+      ?<Empty icon="💊" title="Nothing scheduled today"
+          sub={`No medicines scheduled for ${dowLabel}. Check your prescription schedules.`}/>
+      :grouped.map(({slot,items})=><div key={slot.id} style={{marginBottom:26}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,
+          paddingBottom:8,borderBottom:`1px solid ${P.border}`}}>
+          <span style={{fontSize:22}}>{slot.icon}</span>
+          <div>
+            <span style={{fontWeight:900,fontSize:16,
+              color:slot.id===curSlotId?P.text:P.muted}}>{slot.label}</span>
+            <span style={{fontSize:13,color:P.muted,marginLeft:6}}>{slot.hint}</span>
           </div>
-
-          {rxs.map(rx=>{
-            const supply =supplyInfo(rx,stock);
-            const runOut =runOutDate(rx,stock);
-            const current=activeStock(stock,rx.id);
-            const supDays=supply?.days??0;
-
-            return <Card key={rx.id} onClick={()=>goToRx(rx)}
-              style={{padding:"14px 16px",marginBottom:10,cursor:"pointer",
-                borderLeft:`4px solid ${rx.accent||P.green}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1}}>
-                  {/* Salt name */}
-                  <div style={{fontWeight:900,fontSize:16,marginBottom:2}}>{rx.saltName}</div>
-                  {rx.condition&&<div style={{fontSize:12,color:P.muted,marginBottom:6}}>{rx.condition}</div>}
-
-                  {/* Which brand to take */}
-                  {current
-                    ?<div style={{fontSize:14,marginBottom:6}}>
-                        💊 <strong>{current.brandName}</strong>
-                        {current.lotNumber&&
-                          <span style={{color:P.muted,fontWeight:400}}> · Lot {current.lotNumber}</span>}
-                        <div style={{fontSize:12,color:P.muted,marginTop:1}}>
-                          Same salt as prescribed — different brand, same medicine
-                        </div>
-                      </div>
-                    :<div style={{fontSize:13,color:P.red,marginBottom:6}}>⚠ No stock available</div>}
-
-                  {/* Supply line */}
-                  {supply
-                    ?<div style={{fontSize:13,
-                        color:supDays<=30?P.red:supDays<=90?P.amber:P.muted,
-                        fontWeight:supDays<=30?700:400}}>
-                        {supply.total} units · {supply.days}d supply
-                        {runOut&&<> · Runs out <strong>{fmtDate(runOut)}</strong></>}
-                      </div>
-                    :<div style={{fontSize:13,color:P.muted}}>No stock entered</div>}
-                </div>
-                <span style={{fontSize:20,color:P.muted,alignSelf:"center"}}>›</span>
-              </div>
-            </Card>;
-          })}
+          {slot.id===curSlotId&&<Badge color="green" small>Now</Badge>}
         </div>
-      ))
+
+        {items.map(({rx,slotId,log})=>{
+          const supply =supplyInfo(rx,stock,mode);
+          const runOut =runOutDate(rx,stock,mode);
+          const cur    =activeStock(rx,stock,mode);
+          const supDays=supply?.days??0;
+          const status =log?.status||"pending";
+
+          return <Card key={rx.id+"_"+slotId} onClick={()=>goToRx(rx)}
+            style={{padding:"14px 16px",marginBottom:10,cursor:"pointer",
+              borderLeft:`4px solid ${rx.accent||P.green}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:16,marginBottom:2}}>{rx.saltName}</div>
+                {rx.condition&&<div style={{fontSize:12,color:P.muted,marginBottom:5}}>{rx.condition}</div>}
+                {cur
+                  ?<div style={{fontSize:14,marginBottom:4}}>
+                      💊 <strong>{cur.brandName}</strong>
+                      {cur.lotNumber&&<span style={{color:P.muted,fontWeight:400}}> · Lot {cur.lotNumber}</span>}
+                    </div>
+                  :<div style={{fontSize:13,color:P.red,marginBottom:4}}>⚠ No stock available</div>}
+                {supply&&<div style={{fontSize:12,
+                  color:supDays<=30?P.red:supDays<=90?P.amber:P.muted,
+                  fontWeight:supDays<=30?700:400}}>
+                  {supply.total} units · {supply.days}d supply
+                  {runOut&&<> · Runs out <strong>{fmtDate(runOut)}</strong></>}
+                </div>}
+              </div>
+              {/* Confirm mode: show Taken/Skip */}
+              {mode==="confirm"&&<div style={{flexShrink:0,display:"flex",
+                flexDirection:"column",gap:7,alignItems:"flex-end"}}>
+                {status==="pending"
+                  ?<>
+                    <Btn v="success" sz="sm"
+                      onClick={e=>{e.stopPropagation();markDose(rx,slotId,"taken");}}>✓ Taken</Btn>
+                    <Btn v="ghost" sz="sm"
+                      onClick={e=>{e.stopPropagation();markDose(rx,slotId,"skipped");}}>Skip</Btn>
+                  </>
+                  :<Badge color={status==="taken"?"green":"muted"} small>
+                    {status==="taken"?"✓ Taken":"— Skipped"}</Badge>}
+              </div>}
+              {/* Assume mode: just a chevron */}
+              {mode==="assume"&&
+                <span style={{fontSize:20,color:P.muted,alignSelf:"center"}}>›</span>}
+            </div>
+          </Card>;
+        })}
+      </div>)
     }
   </div>;
 }
@@ -658,6 +765,8 @@ function TodayScreen({prescriptions,stock,goToRx}) {
 // ── Settings ──────────────────────────────────────────────────────────────────
 function SettingsView({data,dispatch}) {
   const [confirmClear,setConfirmClear]=useState(false);
+  const mode=data.settings?.trackingMode||"assume";
+
   const exportData=()=>{
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -668,13 +777,42 @@ function SettingsView({data,dispatch}) {
     const file=e.target.files[0];if(!file)return;
     const r=new FileReader();
     r.onload=ev=>{try{dispatch({type:"IMPORT",p:JSON.parse(ev.target.result)});alert("Imported!");}
-      catch{alert("Could not read backup file.");}};
-    r.readAsText(file);
+      catch{alert("Could not read backup file.");}};r.readAsText(file);
   };
+
   return <div>
     {confirmClear&&<Confirm msg="Delete ALL data? Cannot be undone."
-      onYes={()=>{dispatch({type:"CLEAR"});setConfirmClear(false);}} onNo={()=>setConfirmClear(false)}/>}
+      onYes={()=>{dispatch({type:"CLEAR"});setConfirmClear(false);}}
+      onNo={()=>setConfirmClear(false)}/>}
     <h2 style={{fontSize:22,fontWeight:900,marginBottom:20}}>Settings</h2>
+
+    {/* Tracking mode */}
+    <Card style={{padding:"18px 20px",marginBottom:14}}>
+      <div style={{fontWeight:800,fontSize:15,marginBottom:16}}>Medicine Tracking</div>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <Toggle
+          on={mode==="assume"}
+          onChange={on=>dispatch({type:"SET_SETTING",key:"trackingMode",value:on?"assume":"confirm"})}
+          label="Auto tracking (assume taken)"
+          sub="Stock is automatically calculated based on the schedule. No daily confirmation needed."/>
+        <div style={{height:1,background:P.border}}/>
+        <Toggle
+          on={mode==="confirm"}
+          onChange={on=>dispatch({type:"SET_SETTING",key:"trackingMode",value:on?"confirm":"assume"})}
+          label="Manual confirm"
+          sub='Today screen shows "Taken" and "Skip" buttons. Stock reduces only when confirmed.'/>
+      </div>
+      <Card style={{padding:"12px 14px",background:P.blueLight,border:`1px solid ${P.blue}`,marginTop:14}}>
+        <div style={{fontSize:12,color:P.blue,lineHeight:1.6}}>
+          <strong>Currently:</strong>{" "}
+          {mode==="assume"
+            ?"Stock is auto-calculated from the schedule. Update the quantity in Purchases whenever you count your stock."
+            :"You confirm each dose on the Today screen. Stock reduces only on confirmation."}
+        </div>
+      </Card>
+    </Card>
+
+    {/* Backup */}
     <Card style={{padding:"16px 20px",marginBottom:14}}>
       <div style={{fontWeight:800,fontSize:15,marginBottom:14}}>Backup & Restore</div>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -686,14 +824,15 @@ function SettingsView({data,dispatch}) {
         <Btn v="danger" onClick={()=>setConfirmClear(true)} full>🗑 Clear All Data</Btn>
       </div>
     </Card>
+
     <Card style={{padding:"16px 20px",background:P.cream}}>
       <div style={{fontSize:13,color:P.muted,lineHeight:1.8}}>
         <strong>How it works:</strong><br/>
-        1. Add a <strong>Prescription</strong> — the salt/generic name your doctor prescribed.<br/>
-        2. Add <strong>Purchases</strong> — any brand you bought for that salt, with lot number, expiry and quantity.<br/>
-        3. The app calculates days of supply and tells you which brand to open first (earliest expiry).<br/><br/>
+        1. Add a <strong>Prescription</strong> — the salt your doctor prescribed + weekly schedule.<br/>
+        2. Add <strong>Purchases</strong> — brand name, lot, expiry, quantity on hand.<br/>
+        3. App shows which brand to open first (earliest expiry) and when stock runs out.<br/><br/>
         <strong>Privacy:</strong> All data stays on this device only.<br/><br/>
-        <strong>Disclaimer:</strong> For personal tracking only. Always follow your doctor's or pharmacist's instructions.
+        <strong>Disclaimer:</strong> Personal tracking only. Always follow your doctor's instructions.
       </div>
     </Card>
   </div>;
@@ -701,24 +840,23 @@ function SettingsView({data,dispatch}) {
 
 // ── Bottom Nav ────────────────────────────────────────────────────────────────
 const NAV=[
-  {id:"today",         icon:"🏠", label:"Today"},
-  {id:"prescriptions", icon:"📋", label:"Rx"},
-  {id:"purchases",     icon:"📦", label:"Purchases"},
-  {id:"settings",      icon:"⚙️", label:"Settings"},
+  {id:"today",         icon:"🏠",label:"Today"},
+  {id:"prescriptions", icon:"📋",label:"Rx"},
+  {id:"purchases",     icon:"📦",label:"Purchases"},
+  {id:"settings",      icon:"⚙️",label:"Settings"},
 ];
 function BottomNav({active,setActive}) {
   return <nav style={{position:"fixed",bottom:0,left:0,right:0,background:P.card,
     borderTop:`1px solid ${P.border}`,display:"flex",justifyContent:"space-around",
     padding:"8px 0 12px",zIndex:100,maxWidth:600,margin:"0 auto"}}>
-    {NAV.map(n=>(
-      <button key={n.id} onClick={()=>setActive(n.id)} style={{display:"flex",
-        flexDirection:"column",alignItems:"center",gap:3,background:"none",border:"none",
-        cursor:"pointer",padding:"4px 10px",color:active===n.id?P.text:P.muted,fontFamily:"inherit"}}>
-        <span style={{fontSize:20}}>{n.icon}</span>
-        <span style={{fontSize:10,fontWeight:active===n.id?800:500}}>{n.label}</span>
-        {active===n.id&&<div style={{width:20,height:3,borderRadius:2,background:P.text,marginTop:1}}/>}
-      </button>
-    ))}
+    {NAV.map(n=><button key={n.id} onClick={()=>setActive(n.id)} style={{
+      display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+      background:"none",border:"none",cursor:"pointer",padding:"4px 10px",
+      color:active===n.id?P.text:P.muted,fontFamily:"inherit"}}>
+      <span style={{fontSize:20}}>{n.icon}</span>
+      <span style={{fontSize:10,fontWeight:active===n.id?800:500}}>{n.label}</span>
+      {active===n.id&&<div style={{width:20,height:3,borderRadius:2,background:P.text,marginTop:1}}/>}
+    </button>)}
   </nav>;
 }
 
@@ -726,16 +864,37 @@ function BottomNav({active,setActive}) {
 function reducer(state,action) {
   let next;
   switch(action.type) {
-    case "ADD_RX":    next={...state,prescriptions:[...state.prescriptions,action.rx]}; break;
-    case "UPD_RX":    next={...state,prescriptions:state.prescriptions.map(r=>r.id===action.rx.id?action.rx:r)}; break;
-    case "DEL_RX":    next={...state,
+    case "ADD_RX":   next={...state,prescriptions:[...state.prescriptions,action.rx]}; break;
+    case "UPD_RX":   next={...state,prescriptions:state.prescriptions.map(r=>r.id===action.rx.id?action.rx:r)}; break;
+    case "DEL_RX":   next={...state,
       prescriptions:state.prescriptions.filter(r=>r.id!==action.id),
-      stock:state.stock.filter(s=>s.prescriptionId!==action.id)}; break;
-    case "ADD_STOCK":  next={...state,stock:[...state.stock,action.item]}; break;
-    case "UPD_STOCK":  next={...state,stock:state.stock.map(s=>s.id===action.item.id?action.item:s)}; break;
-    case "DEL_STOCK":  next={...state,stock:state.stock.filter(s=>s.id!==action.id)}; break;
-    case "IMPORT":    next={...blank(),...action.p}; break;
-    case "CLEAR":     next=blank(); break;
+      stock:state.stock.filter(s=>s.prescriptionId!==action.id),
+      logs:state.logs.filter(l=>l.prescriptionId!==action.id)}; break;
+    case "ADD_STOCK": next={...state,stock:[...state.stock,action.item]}; break;
+    case "UPD_STOCK": next={...state,stock:state.stock.map(s=>s.id===action.item.id?action.item:s)}; break;
+    case "DEL_STOCK": next={...state,stock:state.stock.filter(s=>s.id!==action.id)}; break;
+    case "LOG":{
+      const logKey=`${today()}_${action.rx.id}_${action.slotId}`;
+      const now=new Date();
+      const takenAt=action.status==="taken"
+        ?`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`:null;
+      const newLog={id:uid(),logKey,prescriptionId:action.rx.id,date:today(),
+        slotId:action.slotId,takenAt,status:action.status};
+      const idx=state.logs.findIndex(l=>l.logKey===logKey);
+      const logs=idx>=0?state.logs.map((l,i)=>i===idx?newLog:l):[...state.logs,newLog];
+      // In confirm mode, reduce stock quantity on the active item
+      let stock=state.stock;
+      if(action.status==="taken"){
+        const cur=rxStock(state.stock,action.rx.id)
+          .find(item=>(Number(item.quantity)||0)>0);
+        if(cur) stock=state.stock.map(s=>s.id===cur.id
+          ?{...s,quantity:Math.max(0,Number(s.quantity)-1)}:s);
+      }
+      next={...state,logs,stock}; break;
+    }
+    case "SET_SETTING": next={...state,settings:{...state.settings,[action.key]:action.value}}; break;
+    case "IMPORT":  next={...blank(),...action.p}; break;
+    case "CLEAR":   next=blank(); break;
     default: return state;
   }
   persist(next);
@@ -748,37 +907,35 @@ function App() {
   const [tab, setTab] =useState("today");
   const [view,setView]=useState(null);
 
-  const act  = useCallback(action=>setData(prev=>reducer(prev,action)),[]);
-  const back = ()=>setView(null);
+  const act =useCallback(action=>setData(prev=>reducer(prev,action)),[]);
+  const back=()=>setView(null);
+  const mode=data.settings?.trackingMode||"assume";
 
-  const wrap = children=>(
+  const wrap=children=>(
     <div style={{fontFamily:"Georgia,'Palatino Linotype',serif",background:P.bg,
       minHeight:"100vh",color:P.text,maxWidth:600,margin:"0 auto"}}>
       <div style={{padding:"20px 16px 40px"}}>{children}</div>
     </div>
   );
 
-  if(view) {
+  if(view){
     const{s}=view;
-
     if(s==="add_rx"||s==="edit_rx") return wrap(
       <PrescriptionForm existing={view.rx}
         onSave={rx=>{act({type:view.rx?"UPD_RX":"ADD_RX",rx});back();}}
         onCancel={back}/>
     );
-
     if(s==="add_stock"||s==="edit_stock") return wrap(
       <StockForm prescriptions={data.prescriptions} existing={view.item}
         defaultRxId={view.defaultRxId}
         onSave={item=>{act({type:view.item?"UPD_STOCK":"ADD_STOCK",item});back();}}
         onCancel={back}/>
     );
-
-    if(s==="rx_detail") {
+    if(s==="rx_detail"){
       const rx=data.prescriptions.find(r=>r.id===view.rxId);
       if(!rx){back();return null;}
       return wrap(
-        <PrescriptionDetail rx={rx} stock={data.stock} dispatch={act}
+        <PrescriptionDetail rx={rx} stock={data.stock} mode={mode} dispatch={act}
           onBack={back}
           onEditRx={r=>setView({s:"edit_rx",rx:r})}
           onAddStock={r=>setView({s:"add_stock",defaultRxId:r.id})}
@@ -790,16 +947,17 @@ function App() {
   const content=()=>{
     if(tab==="today") return(
       <TodayScreen prescriptions={data.prescriptions} stock={data.stock}
+        logs={data.logs} mode={mode} dispatch={act}
         goToRx={rx=>setView({s:"rx_detail",rxId:rx.id})}/>
     );
     if(tab==="prescriptions") return(
       <PrescriptionsScreen prescriptions={data.prescriptions} stock={data.stock}
-        onSelect={rx=>setView({s:"rx_detail",rxId:rx.id})}
+        mode={mode} onSelect={rx=>setView({s:"rx_detail",rxId:rx.id})}
         onAdd={()=>setView({s:"add_rx"})}/>
     );
     if(tab==="purchases") return(
       <PurchasesScreen stock={data.stock} prescriptions={data.prescriptions}
-        onAdd={()=>setView({s:"add_stock"})}
+        mode={mode} onAdd={()=>setView({s:"add_stock"})}
         onEdit={item=>setView({s:"edit_stock",item})}
         onDelete={id=>act({type:"DEL_STOCK",id})}/>
     );
