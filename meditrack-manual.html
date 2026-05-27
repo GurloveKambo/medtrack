@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MediTrack — User Manual</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:Georgia,"Palatino Linotype",serif;background:#FAF7F2;color:#2C2416;padding:32px 20px 60px;max-width:620px;margin:0 auto;}
+  h1{font-size:26px;font-weight:900;margin-bottom:4px;}
+  .sub{font-size:14px;color:#8A7A65;margin-bottom:36px;}
+  h2{font-size:16px;font-weight:900;margin:28px 0 10px;color:#2C2416;display:flex;align-items:center;gap:8px;}
+  h2 span{font-size:20px;}
+  p{font-size:14px;line-height:1.7;color:#3A2E20;margin-bottom:10px;}
+  .card{background:#fff;border-radius:14px;border:1px solid #E8DFD0;padding:16px 18px;margin-bottom:10px;}
+  .card strong{color:#2C2416;}
+  .step{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;}
+  .num{min-width:26px;height:26px;border-radius:50%;background:#2C2416;color:#fff;
+    font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .step p{margin:0;}
+  .pill{display:inline-block;background:#F5EFE4;color:#8A7A65;border-radius:10px;
+    padding:2px 10px;font-size:12px;font-weight:700;}
+  .pill.green{background:#EAF5EE;color:#3D8C5F;}
+  .pill.amber{background:#FEF3DC;color:#C07A1A;}
+  .pill.red{background:#FAEAEA;color:#B03030;}
+  .pill.blue{background:#E8F2FA;color:#1A5C8F;}
+  .tip{background:#E8F2FA;border:1px solid #1A5C8F;border-radius:12px;padding:12px 14px;
+    font-size:13px;color:#1A5C8F;line-height:1.6;margin-top:6px;}
+  .warn{background:#FEF3DC;border:1px solid #C07A1A;border-radius:12px;padding:12px 14px;
+    font-size:13px;color:#C07A1A;line-height:1.6;margin-top:6px;}
+  .divider{height:1px;background:#E8DFD0;margin:28px 0;}
+  .nav-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .nav-tag{background:#2C2416;color:#fff;border-radius:10px;padding:4px 12px;
+    font-size:13px;font-weight:700;}
+  footer{margin-top:40px;font-size:12px;color:#8A7A65;line-height:1.7;border-top:1px solid #E8DFD0;padding-top:16px;}
+</style>
+</head>
+<body>
+
+<a href="index.html" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#1A5C8F;text-decoration:none;margin-bottom:20px;display:block;">← Back to App</a>
+<h1>💊 MediTrack</h1>
+<p class="sub">User Manual · Quick Start Guide</p>
+
+<!-- WHAT IS THIS -->
+<h2><span>📖</span> What is MediTrack?</h2>
+<p>MediTrack helps you manage a large stock of medicines bought in bulk from different brands.
+It tells you <strong>which box to open first</strong>, <strong>how many days of supply you have</strong>,
+and <strong>when you'll run out</strong> — all calculated automatically.</p>
+
+<div class="tip">
+  💡 Your father's doctor prescribes a <strong>salt</strong> (e.g. Metformin 500mg).
+  You may buy it as Glucophage, Metlong, or a generic — different brand, same medicine.
+  MediTrack tracks them all together under one prescription.
+</div>
+
+<div class="divider"></div>
+
+<!-- THE 3 CONCEPTS -->
+<h2><span>🧠</span> Three things to understand</h2>
+
+<div class="card">
+  <strong>📋 Prescription</strong> — what the doctor wrote.<br/>
+  The salt/generic name + when to take it (e.g. Morning every day, Bedtime Mon–Fri).
+</div>
+<div class="card">
+  <strong>📦 Purchase</strong> — what you actually bought.<br/>
+  Brand name, lot number, expiry date, quantity on hand. One entry per box or strip.
+</div>
+<div class="card">
+  <strong>📅 Schedule</strong> — per slot (Morning / Noon / Evening / Bedtime),
+  pick which days of the week. Can vary — e.g. Morning only on weekdays.
+</div>
+
+<div class="divider"></div>
+
+<!-- GETTING STARTED -->
+<h2><span>🚀</span> Getting started</h2>
+
+<div class="step">
+  <div class="num">1</div>
+  <p>Go to <span class="pill">📋 Rx</span> tab → tap <strong>+ Add</strong> →
+  enter the <strong>salt name</strong> (e.g. "Amlodipine 5mg"), condition, doctor's name,
+  and set the weekly schedule.</p>
+</div>
+<div class="step">
+  <div class="num">2</div>
+  <p>Go to <span class="pill">📦 Purchases</span> tab → tap <strong>+ Add</strong> →
+  select the prescription, enter the <strong>brand name</strong>, lot number, expiry date,
+  and <strong>quantity on hand today</strong>. Repeat for every box you have.</p>
+</div>
+<div class="step">
+  <div class="num">3</div>
+  <p>Go to <span class="pill">🏠 Today</span> — your daily schedule appears automatically.
+  Each medicine shows which brand to take from and when supply runs out.</p>
+</div>
+
+<div class="warn">
+  ⚠ If you bought the same salt from two different brands or sources,
+  add them as <strong>separate purchase entries</strong>. The app will order them by expiry —
+  open the one expiring first.
+</div>
+
+<div class="divider"></div>
+
+<!-- THE 4 TABS -->
+<h2><span>🗂️</span> The four tabs</h2>
+
+<div class="card">
+  <strong>🏠 Today</strong><br/>
+  Your father's daily medicine schedule grouped by Morning / Noon / Evening / Bedtime.
+  Shows which brand to take, units left, and the exact run-out date.
+  Red alert appears when supply drops under 30 days.
+</div>
+<div class="card">
+  <strong>📋 Rx (Prescriptions)</strong><br/>
+  One entry per prescription your doctor wrote. Tap any to see all purchases linked to it,
+  supply summary, and which box is currently open.
+</div>
+<div class="card">
+  <strong>📦 Purchases</strong><br/>
+  All boxes/strips you've bought, sorted by earliest expiry.
+  Search by brand name or lot number. Filter by prescription.
+</div>
+<div class="card">
+  <strong>⚙️ Settings</strong><br/>
+  Switch tracking mode, export/import backup.
+</div>
+
+<div class="divider"></div>
+
+<!-- TRACKING MODES -->
+<h2><span>⚙️</span> Tracking modes</h2>
+
+<div class="card">
+  <strong>Auto tracking (assume taken)</strong> <span class="pill green">Recommended</span><br/>
+  Stock is calculated automatically from the schedule and the date you counted.
+  No daily input needed. Just update the quantity in Purchases whenever you physically
+  count the stock (e.g. when opening a new box).
+</div>
+<div class="card" style="margin-top:8px;">
+  <strong>Manual confirm</strong><br/>
+  Today screen shows a <span class="pill green">✓ Taken</span> button for each dose.
+  Stock reduces only when you tap it. Use this if doses are sometimes skipped.
+</div>
+
+<div class="divider"></div>
+
+<!-- WHICH BOX TO OPEN -->
+<h2><span>📦</span> Which box to open first?</h2>
+<p>Inside any prescription, purchases are sorted by <strong>earliest expiry first</strong>.
+The app marks the current one as <span class="pill green">🟢 Open</span> and the next as
+<span class="pill amber">📦 Next</span>. Always open the earliest-expiring box
+so nothing goes to waste.</p>
+
+<div class="tip">
+  💡 When you open a new box, you don't need to do anything in the app —
+  in Auto mode it calculates automatically. In Manual mode, the next box
+  becomes active once the current one runs out.
+</div>
+
+<div class="divider"></div>
+
+<!-- BULK STOCK TIP -->
+<h2><span>🛒</span> Managing bulk stock</h2>
+<div class="step">
+  <div class="num">1</div>
+  <p>Add <strong>one purchase entry per box or strip</strong> — even if they're the same brand.
+  Different lot numbers or expiry dates = separate entries.</p>
+</div>
+<div class="step">
+  <div class="num">2</div>
+  <p>Enter the <strong>quantity on hand</strong> and the <strong>date you counted it</strong>.
+  Auto mode calculates consumption from that date.</p>
+</div>
+<div class="step">
+  <div class="num">3</div>
+  <p>When you recount stock (e.g. monthly), just <strong>edit the purchase entry</strong>
+  and update the quantity and count date. The app recalculates immediately.</p>
+</div>
+
+<div class="divider"></div>
+
+<!-- BACKUP -->
+<h2><span>💾</span> Backup</h2>
+<p>Go to <span class="pill">⚙️ Settings</span> → <strong>Export Backup</strong> to download
+a JSON file. Save it to Google Drive or WhatsApp it to yourself.
+To restore, tap <strong>Import from backup</strong> and select the file.</p>
+
+<div class="warn">
+  ⚠ All data is stored only on this device. If you clear the browser or switch phones,
+  use the export/import to move your data.
+</div>
+
+<div class="divider"></div>
+
+<!-- DEPLOY -->
+<h2><span>🌐</span> Hosting on GitHub Pages</h2>
+<div class="step">
+  <div class="num">1</div>
+  <p>Create a new repository on <strong>github.com</strong></p>
+</div>
+<div class="step">
+  <div class="num">2</div>
+  <p>Upload <strong>meditrack.html</strong> — rename it <strong>index.html</strong></p>
+</div>
+<div class="step">
+  <div class="num">3</div>
+  <p>Go to Settings → Pages → Source → main branch → Save</p>
+</div>
+<div class="step">
+  <div class="num">4</div>
+  <p>App is live at <strong>https://yourusername.github.io/repo-name</strong></p>
+</div>
+
+<div class="tip">
+  💡 On iPhone: open in Safari → Share → <strong>Add to Home Screen</strong><br/>
+  On Android: open in Chrome → Menu → <strong>Add to Home Screen</strong><br/>
+  It works like an app — no install needed.
+</div>
+
+<div class="divider"></div>
+
+<footer>
+  <strong>Disclaimer:</strong> MediTrack is for personal medicine tracking and reminders only.
+  It does not provide medical advice. Always follow your doctor's or pharmacist's instructions.<br/><br/>
+  All data is stored on your device only. Nothing is sent to any server.
+</footer>
+
+</body>
+</html>
